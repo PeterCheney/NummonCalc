@@ -35,12 +35,12 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
 
             "getReligionProductionBonusCap": "Solar Revolution Limit (%)",
             "getNextTranscendTierProgress": "Progress to Next Transcendence Tier",
-            "getApocryphaProgress": "Rec.Progress to Transcend Tier Progress",
+            "getApocryphaProgress": "Rec.Progress to Next Transcend Tier",
             
             "paragon": "Paragon Bonus",
 
             "getParagonProductionBonus": "Production Bonus",
-            "getParagonStorageBonus": "Storage Bonus",
+            "getParagonStorageBonus": "Storage Bonus(include horizon)",
             
             "time": "Time",
 
@@ -54,9 +54,10 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             "getBestMagnetoBuilding": "Best Magneto/Steamwork Building",
             "getUraniumForThoriumReactors": "Uranium/Sec for Thorium Reactors",
             "getDarkFutureYears": "Years until Dark Future",
-            "getBestRelicBuilding": "BlackCore/BlackNexus",
+            "getBestRelicBuilding": "Best Relic Building (Refine TC)",
             "getGflops": "GFlops",
             "getAIlv15Time": "Time until AI level 15",
+            "getfutureSeason": "Seasons until next TemporalParadox",
 
             "best.none": "No Building",
             "infinity": "Infinity",
@@ -99,13 +100,13 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             "paragon": "领导力加成",
 
             "getParagonProductionBonus": "生产加成",
-            "getParagonStorageBonus": "库存加成",
+            "getParagonStorageBonus": "库存加成(含黑洞)",
 
             "time": "时间",
 
             "getTCPerSacrifice": "每次献祭得到的时间水晶",
             "getRelicPerTCRefine": "每次时间水晶精炼得到遗物",
-            "getTradeAmountAvg": "每跳一年的时间水晶收入",
+            "getTradeAmountAvg": "每跳一年的时间水晶贸易收入",
             "getResourceRetrievalTCBackYears": "下个资源回复水晶回本需跳(年)",
 
             "others": "其他",
@@ -116,7 +117,8 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             "getBestRelicBuilding": "获取最佳遗物建筑",
             "getGflops": "GFlops",
             "getAIlv15Time": "天网觉醒倒计时",
-
+            "getfutureSeason": "距离下次时间悖论(季节)",
+            
             "best.none": "无",
             "infinity": "∞",
             "sec": "/秒",
@@ -187,7 +189,7 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             var aqueduct = (game.bld.getBuildingExt('aqueduct').meta.stage === 0) ? game.bld.getBuildingExt('aqueduct').meta.val : 0;
             baseProd *= 1 + 0.03 * aqueduct + 0.025 * hydroponics;
 
-            var paragonBonus = (game.challenges.currentChallenge == "winterIsComing") ? 0 : game.prestige.getParagonProductionRatio();
+            var paragonBonus = game.challenges.isActive("winterIsComing") ? 0 : game.prestige.getParagonProductionRatio();
             baseProd *= 1 + paragonBonus;
 
             baseProd *= 1 + game.religion.getSolarRevolutionRatio();
@@ -217,15 +219,19 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
         },
     
     getCatnipColdWinter: function(){
-        if (game.science.meta[1].meta[7].researched ==false ) {
-          var catnip = this.getPotentialCatnip(0.1);
-       } else {
-          var catnip = this.getPotentialCatnip(0);
-       }
+        var cold = 0.1;
+        if(game.challenges.isActive("winterIsComing")) {
+        	cold = 1 - (0.1 * game.getLimitedDR(this.game.getEffect("coldHarshness"),1));
+        }
+        if (game.science.meta[1].meta[7].researched) {
+        	cold = 0;
+        }
+		catnip = this.getPotentialCatnip(cold);
         return catnip;
     },
     getCatnipInWarmSpring: function(){
-        var catnip = this.getPotentialCatnip(1.65);
+        var WarmSpringRatio = 1.65 * (1 + this.game.getLimitedDR(this.game.getEffect("springCatnipRatio"), 2));
+        var catnip = this.getPotentialCatnip(WarmSpringRatio);
         return catnip;
     },
 
@@ -452,7 +458,7 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
     },
 
     getLeviChance: function(){
-        var numPyramids = this.game.religion.getZU("blackPyramid").val;
+        var numPyramids = this.game.religion.getZU("blackPyramid").getEffectiveValue(this.game);
         var numMarkers = this.game.religion.getZU("marker").val;
         var chance = this.roundThisNumber(35 * numPyramids * (1 + 0.1 * numMarkers) / 10);
         return chance + "%";
@@ -461,15 +467,7 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
     // RELIGION :
 
     getReligionProductionBonusCap: function(){
-        var transcendTier = this.game.religion.transcendenceTier;
-        var firstAtheismBonus = 0;
-        var atheismBonus = 1;
-        if(this.game.challenges.getChallenge("atheism").researched) {
-            atheismBonus += this.game.getLimitedDR(this.game.getEffect("faithSolarRevolutionBoost"), 4);
-            firstAtheismBonus += 20;
-            }
-        var numObelisks = this.game.religion.getTU("blackObelisk").val + firstAtheismBonus;
-        var result = ((transcendTier * numObelisks * 5) + 1000) * atheismBonus;
+        var result =  100 * (10 + this.game.getEffect("solarRevolutionLimit") + (this.game.challenges.getChallenge("atheism").researched ? (this.game.religion.transcendenceTier) : 0)) * (1 + this.game.getLimitedDR(this.game.getEffect("faithSolarRevolutionBoost"), 4));
         return result;
     },
 
@@ -509,7 +507,8 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
 
     getParagonStorageBonus: function(){
         var storeRatio = this.game.prestige.getParagonStorageRatio();
-        storeRatio = Math.round(storeRatio * 1000) / 1000;
+        var singularity = 1 + this.game.getEffect("globalResourceRatio");
+        storeRatio = Math.round(storeRatio * 1000 * singularity) / 1000;
         return storeRatio + "x";
     },
     
@@ -537,7 +536,7 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
     },
 
     getResourceRetrievalTCBackYears: function() {
-        var shatterRe = 1 + this.game.getLimitedDR(this.game.getEffect("shatterCostReduction"),1); //千禧年挑战的收益
+        var shatterRe = 1 + this.game.getLimitedDR(this.game.getEffect("shatterCostReduction"), 1); //千禧年挑战的收益
         var cycle;
         if (game.calendar.cycle == 5) { //判断周期
             cycle = this.getTradeAmountAvg() / (2.4 + 2.4 * game.getEffect("festivalRatio"));
@@ -551,9 +550,25 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
         var result = calendar * timeC; //
         if (this.game.tabs[7].cfPanel.children[0].children[6].model == null)
             return this.i18n("best.none");
-        var cost = this.game.tabs[7].cfPanel.children[0].children[6].model.prices[0].val; //下个资源回复所需要的的水晶
-        var number = this.game.tabs[7].cfPanel.children[0].children[6].model.on; //点下个资源回复收益
-        if (timeC > 0 && number > 0) {
+        var timeTab = game.getTab("time").cfPanel.children[0];
+        if (timeTab.children.length >= 7 && timeTab.children[6].id == "ressourceRetrieval") {
+            var model = timeTab.children[6].model;
+        } else {
+            for (var i = 0; i < timeTab.children.length; i++) {
+                if (timeTab.children[i].id == "ressourceRetrieval") {
+                    var model = timeTab.children[i].model;
+                    break;
+                }
+            }
+        }
+        for (var i = 0; i < model.prices.length; i++) {
+            if (model.prices[i].name == 'timeCrystal') {
+                var cost = model.prices[i].val;
+                break;
+            }
+        }
+        var number = this.game.time.getCFU("ressourceRetrieval").val; //点下个资源回复收益
+        if (timeC > 0 && number > 0 && number < 100) {
             TCBack = Math.ceil(cost * number / result)
             return TCBack; 
         } else {
@@ -596,10 +611,7 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             this.game.tabs[5].render();
         }
         var next;
-        var cs = Math.floor(Math.log((12 + this.game.religion.getTU("blackCore").val) / 5) / Math.log(1.15)) + 1;
-        if (game.challenges.meta[0].meta[6].on >= 1) {
-            cs += 1;
-        }
+        var cs = Math.floor(Math.log((12 + this.game.religion.getZU("blackPyramid").getEffectiveValue(this.game)) / 5) / Math.log(1.15)) + 1;
         var cs1 = 0;
         var cs2 = Math.ceil(this.game.tabs[5].zgUpgradeButtons[9].model.prices[2].val) - this.game.resPool.get("sorrow").maxValue;
         // 黑色连结价格
@@ -639,6 +651,9 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
     },
 
     getAIlv15Time: function(){
+        if (game.science.getPolicy("transkittenism").researched) {
+            return this.i18n("best.none");
+        }
         var lv15Gflops = Math.exp(14.5);
         var gflopsHave = this.game.resPool.get("gflops").value;
         var gflopsproduction = this.game.getEffect("gflopsPerTickBase") - this.game.getEffect("gflopsConsumption");
@@ -648,6 +663,17 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             return this.game.toDisplaySeconds((lv15Gflops - gflopsHave) / (gflopsproduction * this.game.getTicksPerSecondUI()));//修复函数
         else
             return this.i18n("infinity");
+    },
+    
+    getfutureSeason: function(){
+        if (this.game.bld.get("chronosphere").on == 0) {
+            return this.i18n("best.none");
+        } else if (game.calendar.futureSeasonTemporalParadox == -1) {
+            var time = 1;
+        } else {
+            var time = game.calendar.futureSeasonTemporalParadox + 1;
+        }
+        return time;
     },
     
     //==============================================================================================================================================
@@ -812,6 +838,10 @@ dojo.declare("classes.managers.NummonStatsManager", com.nuclearunicorn.core.TabM
             },
             {
                 name: "getAIlv15Time",
+                val: 0,
+            },
+            {
+                name: "getfutureSeason",
                 val: 0,
             }
         ]  
